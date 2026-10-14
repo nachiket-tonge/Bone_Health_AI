@@ -1,170 +1,207 @@
+# Bone Health AI — Frontend
 
+A web-based bone health assessment platform that brings AI-assisted medical image analysis and patient health assessments together in one interface.
 
-# 📄 README.md (Copy-Paste This)
+The frontend connects to a Spring Boot backend for application and patient-related functionality and a Python FastAPI service for machine learning predictions.
 
-```md
-# 🦴 Bone Health AI — Fracture Detection
+## Features
 
-A web-based AI tool that detects fractures from X-ray images using a machine learning model.
+- **Fracture Detection:** Upload bone X-ray images for AI-assisted fracture analysis.
+- **Bone Age Assessment:** Access bone age estimation functionality through the ML service.
+- **Bone Mineral Density (BMD) Assessment:** Support BMD-related assessment workflows.
+- **Dashboard:** View assessment and patient-related information.
+- **Patient Management:** Access patient management functionality.
+- **Authentication Interface:** Sign-up and login user interface.
+- **Assessment Reports:** Generate and download medical assessment reports.
+- **Profile Management:** View and manage profile information.
+- **Backend Integration:** Communicate with the Spring Boot REST API.
+- **ML Integration:** Send relevant inputs to the machine learning API.
 
----
+> This application is intended for research and decision-support development. Its results do not replace professional medical evaluation.
 
-## 🚀 Features
+## Technology Stack
 
-- 📤 Upload X-ray images
-- 🤖 AI-based fracture detection
-- 🔥 Heatmap visualization of affected area
-- 📊 Confidence score display
-- ⚡ Clean and responsive UI
+- Next.js
+- React
+- JavaScript / JSX and TypeScript where used by the existing project
+- Tailwind CSS
+- REST APIs
+- Spring Boot backend
+- FastAPI ML service
 
----
+## Architecture
 
-## 🛠 Tech Stack
+```text
+User
+ |
+ v
+Next.js Frontend
+ |
+ +--------------------------+
+ |                          |
+ v                          v
+Spring Boot Backend      FastAPI ML Service
+Port 8080                Port 8000
+ |                          |
+ v                          v
+Application Data         Trained ML Models
+```
 
-- **Frontend:** Next.js (App Router)
-- **UI:** Tailwind CSS + ShadCN
-- **Backend (ML API):** FastAPI (running locally)
-- **Language:** TypeScript
+The frontend uses the backend for application-related operations and the ML service for supported prediction workflows.
 
----
+## Prerequisites
 
-## 📁 Project Structure
-````
-  Bone_Health_AI/
-  ├── app/
-  ├── components/
-  ├── lib/
-  ├── public/
-  ├── .env.local
-  ├── .gitignore
-  ├── package.json
+- Node.js compatible with the project's Next.js version
+- npm
+- Git
+- The Spring Boot backend configured and running
+- The FastAPI ML service and required trained models configured and running
 
-````
+## Installation
 
----
-
-## ⚙️ Setup Instructions
-
-### 1️⃣ Clone the repository
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Bone_Health_AI.git
+git clone https://github.com/C0deHungeR/Bone_Health_AI.git
 cd Bone_Health_AI
-````
+```
 
----
-
-### 2️⃣ Install dependencies
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
----
+### 3. Configure environment variables
 
-### 3️⃣ Setup environment variables
-
-Create a file:
+Create a local environment file:
 
 ```bash
-.env.local
+cp .env.example .env.local
 ```
 
-Add:
+Configure the service URLs in `.env.local`:
 
-```bash
+```dotenv
+# ML service
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+
+# Spring Boot backend API base URL
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8080/api
 ```
 
----
+Ensure the URLs match the ports and routes used by your local backend and ML service.
 
-### 4️⃣ Start the frontend
+**Important:** These variables use the `NEXT_PUBLIC_` prefix, so their values may be included in browser-side code. Only use them for public service URLs, never for passwords, API secrets, or private credentials.
+
+Restart the development server after changing environment variables.
+
+## Run the Frontend
+
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-App will run at:
+Open the application at:
 
-👉 [http://localhost:3000](http://localhost:3000)
+```text
+http://localhost:3000
+```
 
----
+## Production Build
 
-## ⚠️ IMPORTANT (Backend Required)
-
-This project depends on a **FastAPI backend** for ML predictions.
-
-Make sure your backend is running at:
+Build the application:
 
 ```bash
-http://127.0.0.1:8000/predict
+npm run build
 ```
 
----
-
-### Example FastAPI run command:
+Start the production server:
 
 ```bash
-uvicorn app:app --reload
+npm run start
 ```
 
----
+Run these commands after configuring the environment variables for the intended deployment.
 
-## 📡 API Format
+## API Integration
 
-### Endpoint:
+### Spring Boot Backend
 
-```
-POST /predict
-```
+The backend base URL is configured using:
 
-### Request:
-
-* FormData with image file
-
-### Response:
-
-```json
-{
-  "prediction": "Fracture Detected",
-  "confidence": 0.92,
-  "heatmap": "base64_encoded_image"
-}
+```dotenv
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8080/api
 ```
 
----
+The frontend API utilities use this base URL to access supported application endpoints, including dashboard and patient-related functionality.
 
-## 🧪 How to Use
+### Machine Learning Service
 
-1. Upload an X-ray image
-2. Click **Analyze**
-3. View:
+The ML service URL is configured using:
 
-   * Detection result
-   * Confidence score
-   * AI heatmap
+```dotenv
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+```
 
----
+The service provides supported AI prediction endpoints. The exact endpoints and request formats are defined by the ML repository.
 
-## 🧠 Future Improvements
+Ensure that both services are running and that their API paths, request payloads, response structures, and cross-origin settings match the frontend integration.
 
-* Add Bone Age Prediction
-* Add BMD Risk Analysis
-* Deploy backend to cloud
-* User authentication system
+## Project Structure
 
----
+```text
+Bone_Health_AI/
+├── app/
+│   └── page.tsx
+├── components/
+│   ├── auth-modal.tsx
+│   ├── dashboard.tsx
+│   ├── dashboard-data-panel.tsx
+│   ├── fracture-detection.tsx
+│   ├── bone-age-estimation.tsx
+│   ├── bmd-risk-assessment.tsx
+│   ├── patient-management.tsx
+│   ├── profile-page.tsx
+│   └── report-download-button.tsx
+├── lib/
+│   ├── api.ts
+│   ├── clinical-api.ts
+│   └── generate-medical-report.ts
+├── public/
+├── .env.example
+├── .gitignore
+├── package.json
+└── README.md
+```
 
-## ⚠️ Notes
+The tree above highlights the main application files; other components, configuration files, and assets may also exist in the repository.
 
-* Backend must be running before using the app
-* `.env.local` is not included in repo (for security)
-* Only supports image files
+## Deployment
 
----
+The frontend can be deployed to a Next.js-compatible hosting platform.
 
-## 👨‍💻 Author
+Before deployment:
 
-Nachiket
+1. Configure the production backend URL.
+2. Configure the production ML service URL.
+3. Ensure both services are reachable from the deployed application.
+4. Configure CORS on the APIs if cross-origin requests are required.
+5. Run the production build and verify the main user flows.
+6. Confirm that `.env.local` and other private environment files are not committed.
 
----
+## Related Repositories
+
+- **Frontend:** [Bone_Health_AI](https://github.com/C0deHungeR/Bone_Health_AI)
+- **Backend:** [Bone_Health_AI_Backend](https://github.com/C0deHungeR/Bone_Health_AI_Backend)
+- **ML Service:** [Bone_Health_AI_ML_Model](https://github.com/nachiket-tonge/Bone_Health_AI_ML_Model)
+
+## Medical Disclaimer
+
+Bone Health AI is a software project for research and decision-support development. Predictions may be inaccurate and must not be treated as a definitive diagnosis. Clinical decisions should be made by qualified healthcare professionals.
+
+## License
+
+Add the applicable license before distributing the project.
