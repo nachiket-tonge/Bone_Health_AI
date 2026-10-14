@@ -1,20 +1,43 @@
+
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { LandingPage } from "@/components/landing-page";
 import { GuestFlow } from "@/components/guest-flow";
 import { Dashboard } from "@/components/dashboard";
 import { ProfilePage } from "@/components/profile-page";
-import { AuthModal } from "@/components/auth-modal"; // new — see step 4
+import { AuthModal } from "@/components/auth-modal";
 import { api } from "@/lib/api";
 import { tokenStore } from "@/lib/token";
 
 type View = "landing" | "guest" | "dashboard" | "profile";
 
+interface AssessmentSummary {
+  id: number;
+  patientId: number;
+  patientName: string;
+  assessmentType: string;
+  performedAt: string;
+  resultSummary: string;
+  resultDetails?: Record<string, unknown>;
+}
+
+interface DashboardSummary {
+  totalScans: number;
+  lastAssessmentAt: string | null;
+  recentAssessments: AssessmentSummary[];
+}
+
 export interface User {
   name: string;
   email: string;
-  role: "Doctor" | "Patient";
+  role: "Clinic Administrator" | "Doctor" | "Unsupported account";
+
+  clinicId?: number;
+  clinicName?: string;
+  address?: string;
+  phone?: string;
+
   avatar?: string;
   totalScans: number;
   lastScanDate: string | null;
@@ -32,43 +55,122 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Restore session if token exists
-  useEffect(() => {
-    const token = tokenStore.get();
-    if (!token) return;
-    api
-      .getProfile(token)
-      .then((profile) => {
-        setUser(buildUser(profile));
-        setCurrentView("dashboard");
-      })
-      .catch(() => tokenStore.clear());
-  }, []);
-
-  // Map backend profile → frontend User shape
+  // Map backend profile to the frontend User shape.
   const buildUser = (profile: {
     name: string;
     email: string;
     role: string;
+    clinicId?: number;
+    clinicName?: string;
+    address?: string;
+    phone?: string;
   }): User => ({
     name: profile.name,
     email: profile.email,
-    role: profile.role === "DOCTOR" ? "Doctor" : "Patient",
+    role:
+      profile.role === "CLINIC_ADMIN"
+        ? "Clinic Administrator"
+        : profile.role === "DOCTOR"
+          ? "Doctor"
+          : "Unsupported account",
+    clinicId: profile.clinicId,
+    clinicName: profile.clinicName,
+    address: profile.address,
+    phone: profile.phone,
     totalScans: 0,
     lastScanDate: null,
     recentReports: [],
   });
 
-  const handleLoginSubmit = async (email: string, password: string) => {
+  // Fetch assessment activity from the backend.
+  const refreshAssessmentActivity = useCallback(async () => {
+    const token = tokenStore.get();
+    if (!token) return;
+
+    try {
+      const summary: DashboardSummary =
+        await api.getDashboardSummary(token, 5);
+
+      setUser((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          totalScans: summary.totalScans ?? 0,
+          lastScanDate: summary.lastAssessmentAt
+            ? new Date(summary.lastAssessmentAt).toLocaleString()
+            : null,
+          recentReports: (summary.recentAssessments ?? []).map((item) => ({
+            id: String(item.id),
+            type: item.assessmentType
+              .replaceAll("_", " ")
+              .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+            date: new Date(item.performedAt).toLocaleString(),
+            result: item.resultSummary,
+          })),
+        };
+      });
+    } catch (error) {
+      console.error("Failed to load assessment activity:", error);
+    }
+  }, []);
+
+  // Restore the authenticated session.
+  useEffect(() => {
+    const token = tokenStore.get();
+    if (!token) return;
+
+    api
+      .getProfile(token)
+      .then((profile) => {
+        const restoredUser = buildUser(profile);
+
+        if (restoredUser.role === "Unsupported account") {
+          tokenStore.clear();
+          return;
+        }
+
+        setUser(restoredUser);
+        setCurrentView("dashboard");
+      })
+      .catch(() => tokenStore.clear());
+  }, []);
+
+  // Refresh stats whenever the user opens the profile.
+  useEffect(() => {
+    if (currentView === "profile" && user) {
+      void refreshAssessmentActivity();
+    }
+  }, [currentView, user?.email, refreshAssessmentActivity]);
+
+  const handleLoginSubmit = async (
+    email: string,
+    password: string,
+  ) => {
     setAuthError(null);
+
     try {
       const res = await api.login({ email, password });
       tokenStore.set(res.token);
-      setUser(buildUser(res));
+
+      const profile = await api.getProfile(res.token);
+      const loggedInUser = buildUser(profile);
+
+      if (loggedInUser.role === "Unsupported account") {
+        tokenStore.clear();
+        setAuthError(
+          "This account does not have a supported staff role. Please contact the administrator.",
+        );
+        return;
+      }
+
+      setUser(loggedInUser);
       setShowAuthModal(false);
       setCurrentView("dashboard");
-    } catch (e: any) {
-      setAuthError(e.message);
+    } catch (error: unknown) {
+      setAuthError(
+        error instanceof Error ? error.message : "Login failed",
+      );
     }
   };
 
@@ -76,17 +178,44 @@ export default function Home() {
     name: string,
     email: string,
     password: string,
-    role: "PATIENT" | "DOCTOR",
+    clinicName: string,
+    address: string,
+    phone: string,
   ) => {
     setAuthError(null);
+
     try {
-      const res = await api.signup({ name, email, password, role });
+      const res = await api.signup({
+        name,
+        email,
+        password,
+        clinicName,
+        address,
+        phone,
+      });
+
       tokenStore.set(res.token);
-      setUser(buildUser(res));
+
+      const profile = await api.getProfile(res.token);
+      const registeredUser = buildUser(profile);
+
+      if (registeredUser.role === "Unsupported account") {
+        tokenStore.clear();
+        setAuthError(
+          "Clinic registration did not return a valid staff role.",
+        );
+        return;
+      }
+
+      setUser(registeredUser);
       setShowAuthModal(false);
       setCurrentView("dashboard");
-    } catch (e: any) {
-      setAuthError(e.message);
+    } catch (error: unknown) {
+      setAuthError(
+        error instanceof Error
+          ? error.message
+          : "Clinic registration failed",
+      );
     }
   };
 
@@ -108,12 +237,14 @@ export default function Home() {
           onViewReports={() => setCurrentView("dashboard")}
         />
       )}
+
       {currentView === "guest" && (
         <GuestFlow
           onBack={() => setCurrentView("landing")}
           onLogin={() => setShowAuthModal(true)}
         />
       )}
+
       {currentView === "dashboard" && user && (
         <Dashboard
           user={user}
@@ -121,6 +252,7 @@ export default function Home() {
           onViewProfile={() => setCurrentView("profile")}
         />
       )}
+
       {currentView === "profile" && user && (
         <ProfilePage
           user={user}
@@ -143,3 +275,4 @@ export default function Home() {
     </main>
   );
 }
+;

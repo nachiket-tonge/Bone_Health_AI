@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReportDownloadButton } from "@/components/report-download-button";
 import {
   Upload,
   ArrowLeft,
@@ -11,14 +12,18 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
+import type { User as UserType } from "@/app/page";
+
 
 interface FractureDetectionProps {
+  user?: UserType;
+  token?: string;
   onBack: () => void;
 }
 
 type ViewState = "upload" | "analyzing" | "results";
 
-export function FractureDetection({ onBack }: FractureDetectionProps) {
+export function FractureDetection({ user,token ,onBack }: FractureDetectionProps) {
   const [view, setView] = useState<ViewState>("upload");
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -91,12 +96,20 @@ export function FractureDetection({ onBack }: FractureDetectionProps) {
         body: formData,
       });
 
-      if (!res.ok) {
-        throw new Error("API failed");
+      const data = await res.json();
+
+      console.log("Prediction Response:", data);
+
+      // X-ray validation failed
+      if (data.error === "INVALID_XRAY_IMAGE") {
+        alert(data.message);
+        setView("upload");
+        return;
       }
 
-      const data = await res.json();
-      console.log("Prediction Response:", data);
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "API failed");
+      }
 
       setResults({
         detected: data.prediction === "Fracture Detected",
@@ -145,7 +158,7 @@ export function FractureDetection({ onBack }: FractureDetectionProps) {
       </div>
 
       {view === "upload" && (
-        <Card className="max-w-2xl">
+        <Card className="mx-auto w-full max-w-2xl">
           <CardHeader>
             <CardTitle>Upload X-ray</CardTitle>
           </CardHeader>
@@ -265,7 +278,7 @@ export function FractureDetection({ onBack }: FractureDetectionProps) {
             </Card>
           </div>
 
-          <Card className="max-w-md">
+          <Card className="mx-auto w-full max-w-md">
             <CardHeader>
               <CardTitle>Detection Result</CardTitle>
             </CardHeader>
@@ -286,6 +299,53 @@ export function FractureDetection({ onBack }: FractureDetectionProps) {
               </p>
             </CardContent>
           </Card>
+          {user?.clinicName && (
+            <ReportDownloadButton
+              clinic={{
+                clinicName: user.clinicName ?? "",
+                address: user.address,
+                phone: user.phone,
+              }}
+              token={token}
+              assessmentType="FRACTURE_DETECTION"
+              resultSummary={`${
+                results.detected ? "Fracture detected" : "No fracture detected"
+              } with ${results.confidence}% confidence`}
+              resultDetails={{
+                detected: results.detected,
+                confidence: results.confidence,
+              }}
+              assessmentTitle="Fracture Detection"
+              findings={[
+                {
+                  label: "Assessment result",
+                  value: results.detected
+                    ? "Fracture Detected"
+                    : "No Fracture Detected",
+                },
+                {
+                  label: "Model confidence",
+                  value: `${results.confidence}%`,
+                },
+              ]}
+              images={[
+                ...(uploadedImage
+                  ? [{ label: "Original X-ray", dataUrl: uploadedImage }]
+                  : []),
+                ...(results.heatmapUrl
+                  ? [{ label: "AI Heatmap", dataUrl: results.heatmapUrl }]
+                  : []),
+                ...(results.boxedImageUrl
+                  ? [
+                      {
+                        label: "Detected Fracture Region",
+                        dataUrl: results.boxedImageUrl,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          )}
         </div>
       )}
     </div>
